@@ -9,6 +9,8 @@
 #define OPENCV_GAPI_CV_DEFS_HPP
 
 #if defined(GAPI_STANDALONE)
+#include <opencv2/gapi/own/types.hpp> // cv::gapi::own::Rect/Size/Point
+#include <opencv2/gapi/own/scalar.hpp> // cv::gapi::own::Scalar
 
 // Simulate OpenCV definitions taken from various
 // OpenCV interface headers if G-API is built in a
@@ -108,6 +110,10 @@ typedef unsigned short ushort;
 #define CV_ELEM_SIZE(type) \
     (CV_MAT_CN(type) << ((((sizeof(size_t)/4+1)*16384|0x3a50) >> CV_MAT_DEPTH(type)*2) & 3))
 
+#ifndef CV_OVERRIDE
+#  define CV_OVERRIDE override
+#endif
+
 // base.h:
 namespace cv
 {
@@ -133,6 +139,11 @@ enum InterpolationFlags{
     INTER_LINEAR_EXACT   = 5,
     INTER_MAX            = 7,
 };
+// replacement of cv's structures:
+using Rect   = gapi::own::Rect;
+using Size   = gapi::own::Size;
+using Point  = gapi::own::Point;
+using Scalar = gapi::own::Scalar;
 } // namespace cv
 
 static inline int cvFloor( double value )

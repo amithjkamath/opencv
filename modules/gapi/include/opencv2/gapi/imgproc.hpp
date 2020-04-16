@@ -2,22 +2,22 @@
 // It is subject to the license terms in the LICENSE file found in the top-level directory
 // of this distribution and at http://opencv.org/license.html.
 //
-// Copyright (C) 2018 Intel Corporation
+// Copyright (C) 2018-2020 Intel Corporation
 
 
 #ifndef OPENCV_GAPI_IMGPROC_HPP
 #define OPENCV_GAPI_IMGPROC_HPP
 
-#include "opencv2/imgproc.hpp"
+#include <opencv2/imgproc.hpp>
 
 #include <utility> // std::tuple
 
-#include "opencv2/gapi/gkernel.hpp"
-#include "opencv2/gapi/gmat.hpp"
-#include "opencv2/gapi/gscalar.hpp"
+#include <opencv2/gapi/gkernel.hpp>
+#include <opencv2/gapi/gmat.hpp>
+#include <opencv2/gapi/gscalar.hpp>
 
 
-/** \defgroup gapi_imgproc G-API image processing functionality
+/** \defgroup gapi_imgproc G-API Image processing functionality
 @{
     @defgroup gapi_filters Graph API: Image filters
     @defgroup gapi_colorconvert Graph API: Converting image from one color space to another
@@ -102,6 +102,14 @@ namespace imgproc {
         }
     };
 
+    G_TYPED_KERNEL(GGoodFeatures,
+                   <cv::GArray<cv::Point2f>(GMat,int,double,double,Mat,int,bool,double)>,
+                   "org.opencv.imgproc.goodFeaturesToTrack") {
+        static GArrayDesc outMeta(GMatDesc, int, double, double, const Mat&, int, bool, double) {
+            return empty_array_desc();
+        }
+    };
+
     G_TYPED_KERNEL(GRGB2YUV, <GMat(GMat)>, "org.opencv.imgproc.colorconvert.rgb2yuv") {
         static GMatDesc outMeta(GMatDesc in) {
             return in; // type still remains CV_8UC3;
@@ -111,6 +119,32 @@ namespace imgproc {
     G_TYPED_KERNEL(GYUV2RGB, <GMat(GMat)>, "org.opencv.imgproc.colorconvert.yuv2rgb") {
         static GMatDesc outMeta(GMatDesc in) {
             return in; // type still remains CV_8UC3;
+        }
+    };
+
+    G_TYPED_KERNEL(GNV12toRGB, <GMat(GMat, GMat)>, "org.opencv.imgproc.colorconvert.nv12torgb") {
+        static GMatDesc outMeta(GMatDesc in_y, GMatDesc in_uv) {
+            GAPI_Assert(in_y.chan == 1);
+            GAPI_Assert(in_uv.chan == 2);
+            GAPI_Assert(in_y.depth == CV_8U);
+            GAPI_Assert(in_uv.depth == CV_8U);
+            // UV size should be aligned with Y
+            GAPI_Assert(in_y.size.width == 2 * in_uv.size.width);
+            GAPI_Assert(in_y.size.height == 2 * in_uv.size.height);
+            return in_y.withType(CV_8U, 3); // type will be CV_8UC3;
+        }
+    };
+
+    G_TYPED_KERNEL(GNV12toBGR, <GMat(GMat, GMat)>, "org.opencv.imgproc.colorconvert.nv12tobgr") {
+        static GMatDesc outMeta(GMatDesc in_y, GMatDesc in_uv) {
+            GAPI_Assert(in_y.chan == 1);
+            GAPI_Assert(in_uv.chan == 2);
+            GAPI_Assert(in_y.depth == CV_8U);
+            GAPI_Assert(in_uv.depth == CV_8U);
+            // UV size should be aligned with Y
+            GAPI_Assert(in_y.size.width == 2 * in_uv.size.width);
+            GAPI_Assert(in_y.size.height == 2 * in_uv.size.height);
+            return in_y.withType(CV_8U, 3); // type will be CV_8UC3;
         }
     };
 
@@ -161,8 +195,71 @@ namespace imgproc {
             return in.withType(CV_8U, 1);
         }
     };
-}
 
+    G_TYPED_KERNEL(GBayerGR2RGB, <cv::GMat(cv::GMat)>, "org.opencv.imgproc.colorconvert.bayergr2rgb") {
+        static cv::GMatDesc outMeta(cv::GMatDesc in) {
+            return in.withType(CV_8U, 3);
+        }
+    };
+
+    G_TYPED_KERNEL(GRGB2HSV, <cv::GMat(cv::GMat)>, "org.opencv.imgproc.colorconvert.rgb2hsv") {
+        static cv::GMatDesc outMeta(cv::GMatDesc in) {
+            return in;
+        }
+    };
+
+    G_TYPED_KERNEL(GRGB2YUV422, <cv::GMat(cv::GMat)>, "org.opencv.imgproc.colorconvert.rgb2yuv422") {
+        static cv::GMatDesc outMeta(cv::GMatDesc in) {
+            GAPI_Assert(in.depth == CV_8U);
+            GAPI_Assert(in.chan == 3);
+            return in.withType(in.depth, 2);
+        }
+    };
+
+    G_TYPED_KERNEL(GNV12toRGBp, <GMatP(GMat,GMat)>, "org.opencv.colorconvert.imgproc.nv12torgbp") {
+        static GMatDesc outMeta(GMatDesc inY, GMatDesc inUV) {
+            GAPI_Assert(inY.depth == CV_8U);
+            GAPI_Assert(inUV.depth == CV_8U);
+            GAPI_Assert(inY.chan == 1);
+            GAPI_Assert(inY.planar == false);
+            GAPI_Assert(inUV.chan == 2);
+            GAPI_Assert(inUV.planar == false);
+            GAPI_Assert(inY.size.width  == 2 * inUV.size.width);
+            GAPI_Assert(inY.size.height == 2 * inUV.size.height);
+            return inY.withType(CV_8U, 3).asPlanar();
+        }
+    };
+
+    G_TYPED_KERNEL(GNV12toGray, <GMat(GMat,GMat)>, "org.opencv.colorconvert.imgproc.nv12togray") {
+        static GMatDesc outMeta(GMatDesc inY, GMatDesc inUV) {
+            GAPI_Assert(inY.depth   == CV_8U);
+            GAPI_Assert(inUV.depth  == CV_8U);
+            GAPI_Assert(inY.chan    == 1);
+            GAPI_Assert(inY.planar  == false);
+            GAPI_Assert(inUV.chan   == 2);
+            GAPI_Assert(inUV.planar == false);
+
+            GAPI_Assert(inY.size.width  == 2 * inUV.size.width);
+            GAPI_Assert(inY.size.height == 2 * inUV.size.height);
+            return inY.withType(CV_8U, 1);
+        }
+    };
+
+    G_TYPED_KERNEL(GNV12toBGRp, <GMatP(GMat,GMat)>, "org.opencv.colorconvert.imgproc.nv12tobgrp") {
+        static GMatDesc outMeta(GMatDesc inY, GMatDesc inUV) {
+            GAPI_Assert(inY.depth == CV_8U);
+            GAPI_Assert(inUV.depth == CV_8U);
+            GAPI_Assert(inY.chan == 1);
+            GAPI_Assert(inY.planar == false);
+            GAPI_Assert(inUV.chan == 2);
+            GAPI_Assert(inUV.planar == false);
+            GAPI_Assert(inY.size.width  == 2 * inUV.size.width);
+            GAPI_Assert(inY.size.height == 2 * inUV.size.height);
+            return inY.withType(CV_8U, 3).asPlanar();
+        }
+    };
+
+} //namespace imgproc
 
 //! @addtogroup gapi_filters
 //! @{
@@ -567,6 +664,59 @@ L2gradient=false ).
 GAPI_EXPORTS GMat Canny(const GMat& image, double threshold1, double threshold2,
                         int apertureSize = 3, bool L2gradient = false);
 
+/** @brief Determines strong corners on an image.
+
+The function finds the most prominent corners in the image or in the specified image region, as
+described in @cite Shi94
+
+-   Function calculates the corner quality measure at every source image pixel using the
+    #cornerMinEigenVal or #cornerHarris .
+-   Function performs a non-maximum suppression (the local maximums in *3 x 3* neighborhood are
+    retained).
+-   The corners with the minimal eigenvalue less than
+    \f$\texttt{qualityLevel} \cdot \max_{x,y} qualityMeasureMap(x,y)\f$ are rejected.
+-   The remaining corners are sorted by the quality measure in the descending order.
+-   Function throws away each corner for which there is a stronger corner at a distance less than
+    maxDistance.
+
+The function can be used to initialize a point-based tracker of an object.
+
+@note If the function is called with different values A and B of the parameter qualityLevel , and
+A \> B, the vector of returned corners with qualityLevel=A will be the prefix of the output vector
+with qualityLevel=B .
+
+@note Function textual ID is "org.opencv.imgproc.goodFeaturesToTrack"
+
+@param image Input 8-bit or floating-point 32-bit, single-channel image.
+@param maxCorners Maximum number of corners to return. If there are more corners than are found,
+the strongest of them is returned. `maxCorners <= 0` implies that no limit on the maximum is set
+and all detected corners are returned.
+@param qualityLevel Parameter characterizing the minimal accepted quality of image corners. The
+parameter value is multiplied by the best corner quality measure, which is the minimal eigenvalue
+(see #cornerMinEigenVal ) or the Harris function response (see #cornerHarris ). The corners with the
+quality measure less than the product are rejected. For example, if the best corner has the
+quality measure = 1500, and the qualityLevel=0.01 , then all the corners with the quality measure
+less than 15 are rejected.
+@param minDistance Minimum possible Euclidean distance between the returned corners.
+@param mask Optional region of interest. If the image is not empty (it needs to have the type
+CV_8UC1 and the same size as image ), it specifies the region in which the corners are detected.
+@param blockSize Size of an average block for computing a derivative covariation matrix over each
+pixel neighborhood. See cornerEigenValsAndVecs .
+@param useHarrisDetector Parameter indicating whether to use a Harris detector (see #cornerHarris)
+or #cornerMinEigenVal.
+@param k Free parameter of the Harris detector.
+
+@return vector of detected corners.
+ */
+GAPI_EXPORTS GArray<Point2f> goodFeaturesToTrack(const GMat  &image,
+                                                       int    maxCorners,
+                                                       double qualityLevel,
+                                                       double minDistance,
+                                                 const Mat   &mask = Mat(),
+                                                       int    blockSize = 3,
+                                                       bool   useHarrisDetector = false,
+                                                       double k = 0.04);
+
 /** @brief Equalizes the histogram of a grayscale image.
 
 The function equalizes the histogram of the input image using the following algorithm:
@@ -728,6 +878,130 @@ Output image must be 8-bit unsigned 3-channel image @ref CV_8UC3.
 @sa RGB2Lab, RGB2YUV
 */
 GAPI_EXPORTS GMat YUV2RGB(const GMat& src);
+
+/** @brief Converts an image from NV12 (YUV420p) color space to RGB.
+The function converts an input image from NV12 color space to RGB.
+The conventional ranges for Y, U, and V channel values are 0 to 255.
+
+Output image must be 8-bit unsigned 3-channel image @ref CV_8UC3.
+
+@note Function textual ID is "org.opencv.imgproc.colorconvert.nv12torgb"
+
+@param src_y input image: 8-bit unsigned 1-channel image @ref CV_8UC1.
+@param src_uv input image: 8-bit unsigned 2-channel image @ref CV_8UC2.
+
+@sa YUV2RGB, NV12toBGR
+*/
+GAPI_EXPORTS GMat NV12toRGB(const GMat& src_y, const GMat& src_uv);
+
+/** @brief Converts an image from NV12 (YUV420p) color space to gray-scaled.
+The function converts an input image from NV12 color space to gray-scaled.
+The conventional ranges for Y, U, and V channel values are 0 to 255.
+
+Output image must be 8-bit unsigned 1-channel image @ref CV_8UC1.
+
+@note Function textual ID is "org.opencv.imgproc.colorconvert.nv12togray"
+
+@param src_y input image: 8-bit unsigned 1-channel image @ref CV_8UC1.
+@param src_uv input image: 8-bit unsigned 2-channel image @ref CV_8UC2.
+
+@sa YUV2RGB, NV12toBGR
+*/
+GAPI_EXPORTS GMat NV12toGray(const GMat& src_y, const GMat& src_uv);
+
+/** @brief Converts an image from NV12 (YUV420p) color space to BGR.
+The function converts an input image from NV12 color space to RGB.
+The conventional ranges for Y, U, and V channel values are 0 to 255.
+
+Output image must be 8-bit unsigned 3-channel image @ref CV_8UC3.
+
+@note Function textual ID is "org.opencv.imgproc.colorconvert.nv12tobgr"
+
+@param src_y input image: 8-bit unsigned 1-channel image @ref CV_8UC1.
+@param src_uv input image: 8-bit unsigned 2-channel image @ref CV_8UC2.
+
+@sa YUV2BGR, NV12toRGB
+*/
+GAPI_EXPORTS GMat NV12toBGR(const GMat& src_y, const GMat& src_uv);
+
+/** @brief Converts an image from BayerGR color space to RGB.
+The function converts an input image from BayerGR color space to RGB.
+The conventional ranges for G, R, and B channel values are 0 to 255.
+
+Output image must be 8-bit unsigned 3-channel image @ref CV_8UC3.
+
+@note Function textual ID is "org.opencv.imgproc.colorconvert.bayergr2rgb"
+
+@param src_gr input image: 8-bit unsigned 1-channel image @ref CV_8UC1.
+
+@sa YUV2BGR, NV12toRGB
+*/
+GAPI_EXPORTS GMat BayerGR2RGB(const GMat& src_gr);
+
+/** @brief Converts an image from RGB color space to HSV.
+The function converts an input image from RGB color space to HSV.
+The conventional ranges for R, G, and B channel values are 0 to 255.
+
+Output image must be 8-bit unsigned 3-channel image @ref CV_8UC3.
+
+@note Function textual ID is "org.opencv.imgproc.colorconvert.rgb2hsv"
+
+@param src input image: 8-bit unsigned 3-channel image @ref CV_8UC3.
+
+@sa YUV2BGR, NV12toRGB
+*/
+GAPI_EXPORTS GMat RGB2HSV(const GMat& src);
+
+/** @brief Converts an image from RGB color space to YUV422.
+The function converts an input image from RGB color space to YUV422.
+The conventional ranges for R, G, and B channel values are 0 to 255.
+
+Output image must be 8-bit unsigned 2-channel image @ref CV_8UC2.
+
+@note Function textual ID is "org.opencv.imgproc.colorconvert.rgb2yuv422"
+
+@param src input image: 8-bit unsigned 3-channel image @ref CV_8UC3.
+
+@sa YUV2BGR, NV12toRGB
+*/
+GAPI_EXPORTS GMat RGB2YUV422(const GMat& src);
+
+/** @brief Converts an image from NV12 (YUV420p) color space to RGB.
+The function converts an input image from NV12 color space to RGB.
+The conventional ranges for Y, U, and V channel values are 0 to 255.
+
+Output image must be 8-bit unsigned planar 3-channel image @ref CV_8UC1.
+Planar image memory layout is three planes laying in the memory contiguously,
+so the image height should be plane_height*plane_number,
+image type is @ref CV_8UC1.
+
+@note Function textual ID is "org.opencv.imgproc.colorconvert.nv12torgbp"
+
+@param src_y input image: 8-bit unsigned 1-channel image @ref CV_8UC1.
+@param src_uv input image: 8-bit unsigned 2-channel image @ref CV_8UC2.
+
+@sa YUV2RGB, NV12toBGRp, NV12toRGB
+*/
+GAPI_EXPORTS GMatP NV12toRGBp(const GMat &src_y, const GMat &src_uv);
+
+/** @brief Converts an image from NV12 (YUV420p) color space to BGR.
+The function converts an input image from NV12 color space to BGR.
+The conventional ranges for Y, U, and V channel values are 0 to 255.
+
+Output image must be 8-bit unsigned planar 3-channel image @ref CV_8UC1.
+Planar image memory layout is three planes laying in the memory contiguously,
+so the image height should be plane_height*plane_number,
+image type is @ref CV_8UC1.
+
+@note Function textual ID is "org.opencv.imgproc.colorconvert.nv12torgbp"
+
+@param src_y input image: 8-bit unsigned 1-channel image @ref CV_8UC1.
+@param src_uv input image: 8-bit unsigned 2-channel image @ref CV_8UC2.
+
+@sa YUV2RGB, NV12toRGBp, NV12toBGR
+*/
+GAPI_EXPORTS GMatP NV12toBGRp(const GMat &src_y, const GMat &src_uv);
+
 //! @} gapi_colorconvert
 } //namespace gapi
 } //namespace cv

@@ -62,7 +62,7 @@ namespace cv
 
 //! Imread flags
 enum ImreadModes {
-       IMREAD_UNCHANGED            = -1, //!< If set, return the loaded image as is (with alpha channel, otherwise it gets cropped).
+       IMREAD_UNCHANGED            = -1, //!< If set, return the loaded image as is (with alpha channel, otherwise it gets cropped). Ignore EXIF orientation.
        IMREAD_GRAYSCALE            = 0,  //!< If set, always convert image to the single channel grayscale image (codec internal conversion).
        IMREAD_COLOR                = 1,  //!< If set, always convert image to the 3 channel BGR color image.
        IMREAD_ANYDEPTH             = 2,  //!< If set, return 16-bit/32-bit image when the input has the corresponding depth, otherwise convert it to 8-bit.
@@ -94,7 +94,9 @@ enum ImwriteFlags {
        IMWRITE_PAM_TUPLETYPE       = 128,//!< For PAM, sets the TUPLETYPE field to the corresponding string value that is defined for the format
        IMWRITE_TIFF_RESUNIT = 256,//!< For TIFF, use to specify which DPI resolution unit to set; see libtiff documentation for valid values
        IMWRITE_TIFF_XDPI = 257,//!< For TIFF, use to specify the X direction DPI
-       IMWRITE_TIFF_YDPI = 258 //!< For TIFF, use to specify the Y direction DPI
+       IMWRITE_TIFF_YDPI = 258, //!< For TIFF, use to specify the Y direction DPI
+       IMWRITE_TIFF_COMPRESSION = 259, //!< For TIFF, use to specify the image compression scheme. See libtiff for integer constants corresponding to compression formats. Note, for images whose depth is CV_32F, only libtiff's SGILOG compression scheme is used. For other supported depths, the compression scheme can be specified by this flag; LZW compression is the default.
+       IMWRITE_JPEG2000_COMPRESSION_X1000 = 272 //!< For JPEG2000, use to specify the target compression rate (multiplied by 1000). The value can be from 0 to 1000. Default is 1000.
      };
 
 enum ImwriteEXRTypeFlags {
@@ -170,8 +172,9 @@ Currently, the following file formats are supported:
     then the [GDAL](http://www.gdal.org) driver will be used in order to decode the image, supporting
     the following formats: [Raster](http://www.gdal.org/formats_list.html),
     [Vector](http://www.gdal.org/ogr_formats.html).
--   If EXIF information are embedded in the image file, the EXIF orientation will be taken into account
-    and thus the image will be rotated accordingly except if the flag @ref IMREAD_IGNORE_ORIENTATION is passed.
+-   If EXIF information is embedded in the image file, the EXIF orientation will be taken into account
+    and thus the image will be rotated accordingly except if the flags @ref IMREAD_IGNORE_ORIENTATION
+    or @ref IMREAD_UNCHANGED are passed.
 -   Use the IMREAD_UNCHANGED flag to keep the floating point values from PFM image.
 -   By default number of pixels must be less than 2^30. Limit can be set using system
     variable OPENCV_IO_MAX_IMAGE_PIXELS
