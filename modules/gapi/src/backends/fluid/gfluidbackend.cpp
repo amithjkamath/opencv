@@ -2,7 +2,7 @@
 // It is subject to the license terms in the LICENSE file found in the top-level directory
 // of this distribution and at http://opencv.org/license.html.
 //
-// Copyright (C) 2018 Intel Corporation
+// Copyright (C) 2018-2020 Intel Corporation
 
 
 #include "precomp.hpp"
@@ -26,7 +26,6 @@
 #include <opencv2/gapi/gcommon.hpp>
 #include "logger.hpp"
 
-#include <opencv2/gapi/own/convert.hpp>
 #include <opencv2/gapi/gmat.hpp>    //for version of descr_of
 // PRIVATE STUFF!
 #include "compiler/gobjref.hpp"
@@ -87,15 +86,15 @@ namespace
                     return gim.metadata(nh).get<NodeKind>().k == NodeKind::ISLAND;
                 });
 
-            const auto out_rois = cv::gimpl::getCompileArg<cv::GFluidOutputRois>(args);
+            const auto out_rois = cv::gapi::getCompileArg<cv::GFluidOutputRois>(args);
             if (num_islands > 1 && out_rois.has_value())
                 cv::util::throw_error(std::logic_error("GFluidOutputRois feature supports only one-island graphs"));
 
             auto rois = out_rois.value_or(cv::GFluidOutputRois());
 
             auto graph_data = fluidExtractInputDataFromGraph(graph, nodes);
-            const auto parallel_out_rois = cv::gimpl::getCompileArg<cv::GFluidParallelOutputRois>(args);
-            const auto gpfor             = cv::gimpl::getCompileArg<cv::GFluidParallelFor>(args);
+            const auto parallel_out_rois = cv::gapi::getCompileArg<cv::GFluidParallelOutputRois>(args);
+            const auto gpfor             = cv::gapi::getCompileArg<cv::GFluidParallelFor>(args);
 
 #if !defined(GAPI_STANDALONE)
             auto default_pfor = [](std::size_t count, std::function<void(std::size_t)> f){
@@ -1237,7 +1236,7 @@ void cv::gimpl::GFluidExecutable::reshape(ade::Graph &g, const GCompileArgs &arg
     initLineConsumption(g);
     calcLatency(g);
     calcSkew(g);
-    const auto out_rois = cv::gimpl::getCompileArg<cv::GFluidOutputRois>(args).value_or(cv::GFluidOutputRois());
+    const auto out_rois = cv::gapi::getCompileArg<cv::GFluidOutputRois>(args).value_or(cv::GFluidOutputRois());
     makeReshape(out_rois.rois);
 }
 
@@ -1246,7 +1245,7 @@ void cv::gimpl::GFluidExecutable::bindInArg(const cv::gimpl::RcDesc &rc, const G
 {
     switch (rc.shape)
     {
-    case GShape::GMAT:    m_buffers[m_id_map.at(rc.id)].priv().bindTo(util::get<cv::gapi::own::Mat>(arg), true); break;
+    case GShape::GMAT:    m_buffers[m_id_map.at(rc.id)].priv().bindTo(util::get<cv::Mat>(arg), true); break;
     case GShape::GSCALAR: m_res.slot<cv::Scalar>()[rc.id] = util::get<cv::Scalar>(arg); break;
     case GShape::GARRAY:  m_res.slot<cv::detail::VectorRef>()[rc.id] = util::get<cv::detail::VectorRef>(arg); break;
     case GShape::GOPAQUE: m_res.slot<cv::detail::OpaqueRef>()[rc.id] = util::get<cv::detail::OpaqueRef>(arg); break;
@@ -1266,20 +1265,12 @@ void cv::gimpl::GFluidExecutable::bindOutArg(const cv::gimpl::RcDesc &rc, const 
 
             switch (arg.index()) {
             // FIXME: See the bindInArg comment on Streaming-related changes
-            case T::index_of<cv::gapi::own::Mat*>(): {
-                auto &outMat = *util::get<cv::gapi::own::Mat*>(arg);
-                GAPI_Assert(outMat.data != nullptr);
-                GAPI_Assert(descr_of(outMat) == desc && "Output argument was not preallocated as it should be ?");
-                bref.bindTo(outMat, false);
-            } break;
-#if !defined(GAPI_STANDALONE)
             case T::index_of<cv::Mat*>(): {
                 auto &outMat = *util::get<cv::Mat*>(arg);
                 GAPI_Assert(outMat.data != nullptr);
-                GAPI_Assert(descr_of(outMat) == desc && "Output argument was not preallocated as it should be ?");
-                bref.bindTo(cv::to_own(outMat), false);
+                GAPI_Assert(cv::descr_of(outMat) == desc && "Output argument was not preallocated as it should be ?");
+                bref.bindTo(outMat, false);
             } break;
-#endif // GAPI_STANDALONE
             default: GAPI_Assert(false);
             } // switch(arg.index())
             break;

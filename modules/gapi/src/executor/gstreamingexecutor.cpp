@@ -2,7 +2,7 @@
 // It is subject to the license terms in the LICENSE file found in the top-level directory
 // of this distribution and at http://opencv.org/license.html.
 //
-// Copyright (C) 2019 Intel Corporation
+// Copyright (C) 2019-2020 Intel Corporation
 
 #include "precomp.hpp"
 
@@ -98,8 +98,6 @@ std::vector<cv::gimpl::stream::Q*> input_queues(      ade::Graph &g,
 
 void sync_data(cv::GRunArgs &results, cv::GRunArgsP &outputs)
 {
-    namespace own = cv::gapi::own;
-
     for (auto && it : ade::util::zip(ade::util::toRange(outputs),
                                      ade::util::toRange(results)))
     {
@@ -110,13 +108,8 @@ void sync_data(cv::GRunArgs &results, cv::GRunArgsP &outputs)
         using T = cv::GRunArgP;
         switch (out_obj.index())
         {
-#if !defined(GAPI_STANDALONE)
         case T::index_of<cv::Mat*>():
             *cv::util::get<cv::Mat*>(out_obj) = std::move(cv::util::get<cv::Mat>(res_obj));
-            break;
-#endif // !GAPI_STANDALONE
-        case T::index_of<own::Mat*>():
-            *cv::util::get<own::Mat*>(out_obj) = std::move(cv::util::get<own::Mat>(res_obj));
             break;
         case T::index_of<cv::Scalar*>():
             *cv::util::get<cv::Scalar*>(out_obj) = std::move(cv::util::get<cv::Scalar>(res_obj));
@@ -420,13 +413,8 @@ class StreamingOutput final: public cv::gimpl::GIslandExecutable::IOutput
     // Prepare this object for posting
     virtual cv::GRunArgP get(int idx) override
     {
-#if !defined(GAPI_STANDALONE)
         using MatType = cv::Mat;
         using SclType = cv::Scalar;
-#else
-        using MatType = cv::gapi::own::Mat;
-        using SclType = cv::gapi::own::Scalar;
-#endif // GAPI_STANDALONE
 
         // Allocate a new posting first, then bind this GRunArgP to this item
         auto iter    = m_postings[idx].insert(m_postings[idx].end(), Posting{});
@@ -615,10 +603,14 @@ void collectorThread(std::vector<Q*> in_queues,
 }
 } // anonymous namespace
 
-cv::gimpl::GStreamingExecutor::GStreamingExecutor(std::unique_ptr<ade::Graph> &&g_model)
+// GStreamingExecutor expects compile arguments as input to have possibility to do
+// proper graph reshape and islands recompilation
+cv::gimpl::GStreamingExecutor::GStreamingExecutor(std::unique_ptr<ade::Graph> &&g_model,
+                                                  const GCompileArgs &comp_args)
     : m_orig_graph(std::move(g_model))
     , m_island_graph(GModel::Graph(*m_orig_graph).metadata()
                      .get<IslandModel>().model)
+    , m_comp_args(comp_args)
     , m_gim(*m_island_graph)
 {
     GModel::Graph gm(*m_orig_graph);
@@ -812,6 +804,7 @@ void cv::gimpl::GStreamingExecutor::setSource(GRunArgs &&ins)
             }
         }
     };
+    bool islandsRecompiled = false;
     const auto new_meta = cv::descr_of(ins); // 0
     if (gm.metadata().contains<OriginalInputMeta>()) // (1)
     {
@@ -833,6 +826,8 @@ void cv::gimpl::GStreamingExecutor::setSource(GRunArgs &&ins)
             }
             update_int_metas(); // (7)
             m_reshapable = util::make_optional(is_reshapable);
+
+            islandsRecompiled = true;
         }
         else // (8)
         {
@@ -941,7 +936,15 @@ void cv::gimpl::GStreamingExecutor::setSource(GRunArgs &&ins)
         for (auto &&out_eh : op.nh->outNodes()) {
             out_queues.push_back(reader_queues(*m_island_graph, out_eh));
         }
-        op.isl_exec->handleNewStream();
+
+        // If Island Executable is recompiled, all its stuff including internal kernel states
+        // are recreated and re-initialized automatically.
+        // But if not, we should notify Island Executable about new started stream to let it update
+        // its internal variables.
+        if (!islandsRecompiled)
+        {
+            op.isl_exec->handleNewStream();
+        }
 
         m_threads.emplace_back(islandActorThread,
                                op.in_objects,

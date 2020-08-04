@@ -14,11 +14,9 @@
 #include <cstdint> // uint8_t
 
 #include <opencv2/gapi/opencv_includes.hpp>
-#include <opencv2/gapi/own/mat.hpp>
 #include <opencv2/gapi/gmat.hpp>
 
 #include <opencv2/gapi/util/optional.hpp>
-#include <opencv2/gapi/own/mat.hpp>
 
 namespace cv {
 namespace gapi {
@@ -58,8 +56,6 @@ public:
         }
     };
 
-    View() = default;
-
     const inline uint8_t* InLineB(int index) const // -(w-1)/2...0...+(w-1)/2 for Filters
     {
         return m_cache->linePtr(index);
@@ -82,6 +78,7 @@ public:
     Priv& priv();               // internal use only
     const Priv& priv() const;   // internal use only
 
+    View();
     View(std::unique_ptr<Priv>&& p);
     View(View&& v);
     View& operator=(View&& v);
@@ -89,7 +86,7 @@ public:
 
 private:
     std::unique_ptr<Priv> m_priv;
-    const Cache* m_cache;
+    const Cache* m_cache = nullptr;
 };
 
 class GAPI_EXPORTS Buffer
@@ -114,7 +111,7 @@ public:
            int wlpi,
            BorderOpt border);
     // Constructor for in/out buffers (for tests)
-    Buffer(const cv::gapi::own::Mat &data, bool is_input);
+    Buffer(const cv::Mat &data, bool is_input);
     ~Buffer();
     Buffer& operator=(Buffer&&);
 
