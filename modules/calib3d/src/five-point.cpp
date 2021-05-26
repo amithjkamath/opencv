@@ -31,6 +31,8 @@
 
 #include "precomp.hpp"
 
+#include "usac.hpp"
+
 namespace cv
 {
 
@@ -403,9 +405,14 @@ protected:
 
 // Input should be a vector of n 2D points or a Nx2 matrix
 cv::Mat cv::findEssentialMat( InputArray _points1, InputArray _points2, InputArray _cameraMatrix,
-                              int method, double prob, double threshold, OutputArray _mask)
+                              int method, double prob, double threshold,
+                              int maxIters, OutputArray _mask)
 {
     CV_INSTRUMENT_REGION();
+
+    if (method >= 32 && method <= 38)
+        return usac::findEssentialMat(_points1, _points2, _cameraMatrix,
+            method, prob, threshold, _mask);
 
     Mat points1, points2, cameraMatrix;
     _points1.getMat().convertTo(points1, CV_64F);
@@ -442,11 +449,27 @@ cv::Mat cv::findEssentialMat( InputArray _points1, InputArray _points2, InputArr
 
     Mat E;
     if( method == RANSAC )
-        createRANSACPointSetRegistrator(makePtr<EMEstimatorCallback>(), 5, threshold, prob)->run(points1, points2, E, _mask);
+        createRANSACPointSetRegistrator(makePtr<EMEstimatorCallback>(), 5, threshold, prob, maxIters)->run(points1, points2, E, _mask);
     else
-        createLMeDSPointSetRegistrator(makePtr<EMEstimatorCallback>(), 5, prob)->run(points1, points2, E, _mask);
+        createLMeDSPointSetRegistrator(makePtr<EMEstimatorCallback>(), 5, prob, maxIters)->run(points1, points2, E, _mask);
 
     return E;
+}
+
+cv::Mat cv::findEssentialMat( InputArray _points1, InputArray _points2, InputArray _cameraMatrix,
+                              int method, double prob, double threshold,
+                              OutputArray _mask)
+{
+    return cv::findEssentialMat(_points1, _points2, _cameraMatrix, method, prob, threshold, 1000, _mask);
+}
+
+cv::Mat cv::findEssentialMat( InputArray _points1, InputArray _points2, double focal, Point2d pp,
+                              int method, double prob, double threshold, int maxIters, OutputArray _mask)
+{
+    CV_INSTRUMENT_REGION();
+
+    Mat cameraMatrix = (Mat_<double>(3,3) << focal, 0, pp.x, 0, focal, pp.y, 0, 0, 1);
+    return cv::findEssentialMat(_points1, _points2, cameraMatrix, method, prob, threshold, maxIters, _mask);
 }
 
 cv::Mat cv::findEssentialMat( InputArray _points1, InputArray _points2, double focal, Point2d pp,
@@ -455,7 +478,7 @@ cv::Mat cv::findEssentialMat( InputArray _points1, InputArray _points2, double f
     CV_INSTRUMENT_REGION();
 
     Mat cameraMatrix = (Mat_<double>(3,3) << focal, 0, pp.x, 0, focal, pp.y, 0, 0, 1);
-    return cv::findEssentialMat(_points1, _points2, cameraMatrix, method, prob, threshold, _mask);
+    return cv::findEssentialMat(_points1, _points2, cameraMatrix, method, prob, threshold, 1000, _mask);
 }
 
 cv::Mat cv::findEssentialMat( InputArray _points1, InputArray _points2,
@@ -485,6 +508,20 @@ cv::Mat cv::findEssentialMat( InputArray _points1, InputArray _points2,
     transform(_pointsUntistorted2, _pointsUntistorted2, affine);
 
     return findEssentialMat(_pointsUntistorted1, _pointsUntistorted2, cm0, method, prob, threshold, _mask);
+}
+
+cv::Mat cv::findEssentialMat( InputArray points1, InputArray points2,
+                      InputArray cameraMatrix1, InputArray cameraMatrix2,
+                      InputArray dist_coeff1, InputArray dist_coeff2, OutputArray mask, const UsacParams &params) {
+    Ptr<usac::Model> model;
+    usac::setParameters(model, usac::EstimationMethod::Essential, params, mask.needed());
+    Ptr<usac::RansacOutput> ransac_output;
+    if (usac::run(model, points1, points2, model->getRandomGeneratorState(),
+            ransac_output, cameraMatrix1, cameraMatrix2, dist_coeff1, dist_coeff2)) {
+        usac::saveMask(mask, ransac_output->getInliersMask());
+        return ransac_output->getModel();
+    } else return Mat();
+
 }
 
 int cv::recoverPose( InputArray E, InputArray _points1, InputArray _points2,

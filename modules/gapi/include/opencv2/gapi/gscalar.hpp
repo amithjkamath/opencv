@@ -26,10 +26,10 @@ struct GOrigin;
  * @{
  */
 
-class GAPI_EXPORTS GScalar
+class GAPI_EXPORTS_W_SIMPLE GScalar
 {
 public:
-    GScalar();                                         // Empty constructor
+    GAPI_WRAP GScalar();                    // Empty constructor
     explicit GScalar(const cv::Scalar& s);  // Constant value constructor from cv::Scalar
     explicit GScalar(cv::Scalar&& s);       // Constant value move-constructor from cv::Scalar
 
@@ -49,7 +49,7 @@ private:
  * \addtogroup gapi_meta_args
  * @{
  */
-struct GScalarDesc
+struct GAPI_EXPORTS_W_SIMPLE GScalarDesc
 {
     // NB.: right now it is empty
 
@@ -64,9 +64,9 @@ struct GScalarDesc
     }
 };
 
-static inline GScalarDesc empty_scalar_desc() { return GScalarDesc(); }
+GAPI_EXPORTS_W inline GScalarDesc empty_scalar_desc() { return GScalarDesc(); }
 
-GAPI_EXPORTS GScalarDesc descr_of(const cv::Scalar            &scalar);
+GAPI_EXPORTS GScalarDesc descr_of(const cv::Scalar &scalar);
 
 std::ostream& operator<<(std::ostream& os, const cv::GScalarDesc &desc);
 
